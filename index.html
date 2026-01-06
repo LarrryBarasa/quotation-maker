@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Professional Quotation Maker</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body { background: linear-gradient(135deg, #f0f4ff, #f9fbff); }
+.card { border-radius: 18px; }
+.logo-preview { max-height: 60px; margin-bottom:10px; }
+.btn-primary { border-radius: 30px; }
+.table th, .table td { vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="container mt-5 mb-5">
+<div class="card shadow-lg p-4">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <input type="file" id="logoInput" class="form-control form-control-sm mb-2">
+        <img id="logoPreview" class="logo-preview">
+    </div>
+    <h3>📄 Quotation</h3>
+    <span class="badge bg-success">KSH</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <label>Company Name</label>
+        <input id="company" class="form-control" placeholder="Your Company Ltd">
+    </div>
+    <div class="col-md-6">
+        <label>Client Name</label>
+        <input id="client" class="form-control" placeholder="Client Name">
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <label>Payment Details</label>
+        <textarea id="paymentDetails" class="form-control" rows="3"
+        placeholder="Bank: XYZ Bank&#10;Account Name: ABC Ltd&#10;Account No: 123456789"></textarea>
+    </div>
+    <div class="col-md-6">
+        <label>Terms & Conditions</label>
+        <textarea id="terms" class="form-control" rows="3"
+        placeholder="Payment due within 30 days. Prices include VAT."></textarea>
+    </div>
+</div>
+
+<table class="table table-bordered text-center">
+<thead class="table-primary">
+<tr>
+    <th>Item</th>
+    <th>Qty</th>
+    <th>Unit Price</th>
+    <th>Total</th>
+    <th>❌</th>
+</tr>
+</thead>
+<tbody id="items"></tbody>
+</table>
+
+<button class="btn btn-outline-primary mb-3" onclick="addItem()">➕ Add Item</button>
+
+<div class="row justify-content-end">
+<div class="col-md-4 bg-light p-3 rounded">
+<div class="d-flex justify-content-between"><span>Subtotal</span><strong>KSH <span id="subtotal">0.00</span></strong></div>
+<div class="d-flex justify-content-between mt-2">
+<span>VAT (%)</span>
+<input id="vatRate" type="number" value="16" class="form-control form-control-sm w-25" oninput="calculate()">
+</div>
+<div class="d-flex justify-content-between mt-2"><span>VAT</span><strong>KSH <span id="vatAmount">0.00</span></strong></div>
+<hr>
+<div class="d-flex justify-content-between fs-5"><strong>Grand Total</strong><strong>KSH <span id="grandTotal">0.00</span></strong></div>
+</div>
+</div>
+
+<div class="text-center mt-4">
+<button class="btn btn-primary" onclick="generatePDF()">Download PDF</button>
+</div>
+
+</div>
+</div>
+
+<script>
+let logoData = null;
+let quotationCounter = 1;
+
+function formatMoney(n){
+    return Number(n).toLocaleString("en-KE",{minimumFractionDigits:2});
+}
+
+// Logo upload
+logoInput.onchange = e => {
+    const reader = new FileReader();
+    reader.onload = () => { logoData = reader.result; logoPreview.src = logoData; };
+    reader.readAsDataURL(e.target.files[0]);
+};
+
+function addItem(){
+    items.innerHTML += `
+    <tr>
+        <td><input class="form-control item" placeholder="Item description"></td>
+        <td><input type="number" class="form-control qty" value="1" min="1" oninput="calculate()"></td>
+        <td><input type="number" class="form-control price" value="0" min="0" oninput="calculate()"></td>
+        <td class="total">0.00</td>
+        <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove();calculate()">X</button></td>
+    </tr>`;
+}
+
+function calculate(){
+    let subtotal=0;
+    document.querySelectorAll("#items tr").forEach(r=>{
+        let q = +r.querySelector(".qty").value || 0;
+        let p = +r.querySelector(".price").value || 0;
+        let t = q*p;
+        r.querySelector(".total").innerText = formatMoney(t);
+        subtotal += t;
+    });
+    let vat = subtotal*(+vatRate.value/100);
+    subtotalSpan.innerText = formatMoney(subtotal);
+    vatAmount.innerText = formatMoney(vat);
+    grandTotal.innerText = formatMoney(subtotal+vat);
+}
+
+function generatePDF(){
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const w = doc.internal.pageSize.getWidth();
+    const h = doc.internal.pageSize.getHeight();
+    const datePart = new Date().toISOString().slice(0,10).replace(/-/g,"");
+    const quotationNo = `${datePart}-${String(quotationCounter).padStart(3,'0')}`;
+    quotationCounter++;
+
+    let y = 20;
+
+    // Logo
+    if(logoData) doc.addImage(logoData,"PNG",15,10,40,30);
+
+    // Company Name
+    doc.setFont("Helvetica","bold");
+    doc.setFontSize(18);
+    doc.text(company.value, 60, 18);
+
+    // Right-side header info
+    const rightX = 180;
+    let rightY = 18;
+    doc.setFontSize(14);
+    doc.text("QUOTATION", rightX, rightY, {align:"right"});
+    doc.setFontSize(10);
+    doc.setFont("Helvetica","normal");
+    rightY += 6;
+    doc.text(`Quotation No: ${quotationNo}`, rightX, rightY, {align:"right"});
+    rightY += 6;
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, rightX, rightY, {align:"right"});
+    rightY += 6;
+    doc.setFont("Helvetica","bold");
+    doc.text(`Client: ${client.value}`, rightX, rightY, {align:"right"});
+
+    // Horizontal line
+    doc.setLineWidth(0.5);
+    doc.line(15,50,w-15,50);
+
+    // Table Header
+    y = 60;
+    doc.setFont("Helvetica","bold");
+    doc.setFillColor(240,240,240);
+    doc.rect(15,y-6,w-30,8,"F");
+    doc.text("Item",17,y);
+    doc.text("Qty",105,y);
+    doc.text("Unit Price",135,y);
+    doc.text("Total",170,y);
+    doc.setFont("Helvetica","normal");
+    y += 8;
+
+    // Items
+    let subtotal = 0;
+    document.querySelectorAll("#items tr").forEach(r=>{
+        let item = r.querySelector(".item").value || "-";
+        let qty = r.querySelector(".qty").value;
+        let price = +r.querySelector(".price").value;
+        let total = qty*price;
+        subtotal += total;
+
+        // Wrap item description after 40 chars
+        const itemLines = doc.splitTextToSize(item,65);
+
+        // Alternating row color
+        if((y-63)/8 % 2 === 0) doc.setFillColor(250,250,250), doc.rect(15,y-6,w-30,8*itemLines.length,"F");
+
+        itemLines.forEach((line,i)=>{
+            doc.text(line,17,y + i*7);
+        });
+
+        doc.text(qty,105,y);
+        doc.text(formatMoney(price),135,y);
+        doc.text(formatMoney(total),170,y);
+        y += 8*itemLines.length;
+    });
+
+    const vat = subtotal*(+vatRate.value/100);
+    y += 5;
+    doc.line(120,y,w-15,y);
+    y += 5;
+
+    doc.setFont("Helvetica","bold");
+    doc.text("Subtotal:",135,y);
+    doc.text(`KSH ${formatMoney(subtotal)}`,170,y);
+    y += 7;
+    doc.text(`VAT (${vatRate.value}%):`,135,y);
+    doc.text(`KSH ${formatMoney(vat)}`,170,y);
+    y += 10;
+    doc.setFontSize(13);
+    doc.text("Grand Total:",135,y);
+    doc.text(`KSH ${formatMoney(subtotal+vat)}`,170,y);
+
+    // Payment Details
+    y += 15;
+    doc.setFontSize(12);
+    doc.setFont("Helvetica","bold");
+    doc.text("Payment Details",15,y);
+    doc.setFontSize(10);
+    doc.setFont("Helvetica","normal");
+    doc.text(paymentDetails.value||"N/A",15,y+6,{maxWidth:w-30});
+
+    // Terms
+    y += 25;
+    doc.setFontSize(12);
+    doc.setFont("Helvetica","bold");
+    doc.text("Terms & Conditions",15,y);
+    doc.setFontSize(10);
+    doc.setFont("Helvetica","normal");
+    doc.text(terms.value||"N/A",15,y+6,{maxWidth:w-30});
+
+    // Footer
+    doc.setFontSize(9);
+    doc.text("Thank you for your business!",w/2,h-12,{align:"center"});
+
+    // Save PDF
+    doc.save(`${client.value.replace(/\s+/g,"_")}_Quotation.pdf`);
+}
+
+const subtotalSpan=document.getElementById("subtotal");
+addItem();
+</script>
+</body>
+</html>
